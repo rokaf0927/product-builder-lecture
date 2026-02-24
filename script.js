@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("파일 처리 중 오류:", error);
-            pastDataContainer.innerHTML = `<p style=\"color: red;\">${error.message}</p>`;
+            pastDataContainer.innerHTML = `<p style="color: red;">${error.message}</p>`;
             generateBtn.disabled = true;
         }
     }
@@ -96,30 +96,71 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listener for the generate button
     generateBtn.addEventListener('click', () => {
         if (lottoData.length === 0) {
-            resultContainer.innerHTML = `<p style=\"color: red;\">데이터를 먼저 불러와야 합니다.</p>`;
+            resultContainer.innerHTML = `<p style="color: red;">데이터를 먼저 불러와야 합니다.</p>`;
             return;
         }
 
-        const numberCounts = new Map();
-        for (let i = 1; i <= 45; i++) {
-            numberCounts.set(i, 0);
-        }
+        // 각 자리별(1~6번째) 숫자 출현 빈도를 저장할 배열
+        const positionCounts = Array(6).fill(null).map(() => new Map());
 
+        // 과거 데이터를 분석하여 각 자리별 숫자 출현 빈도 계산
+        // win_nums는 오름차순으로 정렬되어 있음
         lottoData.forEach(round => {
-            round.win_nums.forEach(num => {
-                if (numberCounts.has(num)) {
-                    numberCounts.set(num, numberCounts.get(num) + 1);
+            round.win_nums.forEach((num, index) => {
+                if (index < 6) { // 6개의 당첨 번호에 대해서만 처리
+                    const counts = positionCounts[index];
+                    counts.set(num, (counts.get(num) || 0) + 1);
                 }
             });
         });
 
-        const sortedNumbers = [...numberCounts.entries()].sort((a, b) => b[1] - a[1]);
-        const top6Numbers = sortedNumbers.slice(0, 6).map(entry => entry[0]);
+        const recommendedNumbers = [];
+        const usedNumbers = new Set();
 
-        displayRecommendedNumbers(top6Numbers.sort((a, b) => a - b));
+        // 각 자리에서 가장 많이 나온 숫자를 선택 (중복 제외)
+        for (let i = 0; i < 6; i++) {
+            const sortedByCount = [...positionCounts[i].entries()].sort((a, b) => b[1] - a[1]);
+            
+            let foundNumber = false;
+            // 아직 선택되지 않은 숫자 중에서 가장 빈도가 높은 것을 찾음
+            for (const [num, count] of sortedByCount) {
+                if (!usedNumbers.has(num)) {
+                    recommendedNumbers.push(num);
+                    usedNumbers.add(num);
+                    foundNumber = true;
+                    break;
+                }
+            }
+
+            // 만약 해당 자리의 모든 상위 빈도 숫자가 이미 선택되었다면,
+            // 전체 1-45 숫자 중에서 아직 선택되지 않은 숫자로 채움 (fallback)
+            if (!foundNumber) {
+                for (let num = 1; num <= 45; num++) {
+                    if (!usedNumbers.has(num)) {
+                        recommendedNumbers.push(num);
+                        usedNumbers.add(num);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 최종 추천 번호를 오름차순으로 정렬하여 표시
+        displayRecommendedNumbers(recommendedNumbers.sort((a, b) => a - b));
     });
 
     function displayPastData(data) {
+        // Create a copy of the data array to avoid modifying the original
+        const dataCopy = [...data];
+
+        // Fisher-Yates shuffle algorithm to shuffle the data array
+        for (let i = dataCopy.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [dataCopy[i], dataCopy[j]] = [dataCopy[j], dataCopy[i]];
+        }
+
+        const randomData = dataCopy.slice(0, 10);
+
         const table = document.createElement('table');
         table.innerHTML = `
             <thead>
@@ -130,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </tr>
             </thead>
             <tbody>
-                ${data.map(round => `
+                ${randomData.map(round => `
                     <tr>
                         <td>${round.round}</td>
                         <td>${round.win_nums.join(', ')}</td>
